@@ -170,3 +170,78 @@ with st.expander("Step 1: Output Strategy", expanded=True):
             multiplier = st.selectbox("Select Scale Multiplier:", ["1.5x", "2.0x", "2.5x", "3.0x", "3.5x", "4.0x"])
             dimensions = f"Scale original size by {multiplier}"
         else:
+            dimensions = f"{selected_dim} inches" if use_case != "Digital Display" and "inches" not in selected_dim else selected_dim
+
+# --- 2. Composition & Aspect Ratio ---
+with st.expander("Step 2: Composition & Aspect Ratio"):
+    aspect_mode = st.selectbox("How should the image fit the new dimensions?", 
+                               ["Fill (Crop to fit)", "Fit (Letterbox/Pillarbox)", "Stretch (Distort to fit)", "Center", "Span"])
+    smart_crop = st.checkbox("Enable Smart Crop")
+    if smart_crop:
+        st.caption("✨ AI will intelligently adjust the composition to ensure subjects and key features are preserved within the new frame.")
+
+# --- 3. Structural Restoration ---
+with st.expander("Step 3: Structural Restoration"):
+    damage_types = st.multiselect("Select damage to repair:", 
+                                  ["Surface Scratches", "Deep Creases/Folds", "Water Stains/Foxing", "Torn Corners/Edges", "Dust & Specks"])
+    reconstruct_missing = st.checkbox("Use bilateral symmetry to reconstruct missing sections?")
+
+# --- 4. Subject Fidelity ---
+with st.expander("Step 4: Subject Fidelity"):
+    fidelity_mode = st.radio("Facial Reconstruction Mode", 
+                             ["Conservative (No new features)", "Reference-Based (Use secondary photo)", "Generative (AI-assisted restoration)"])
+    skin_texture = st.select_slider("Skin Texture", options=["Ultra Smooth", "Balanced", "Natural Grain"], value="Natural Grain")
+
+# --- 5. Aesthetic & Style ---
+with st.expander("Step 5: Aesthetic & Style"):
+    col3, col4 = st.columns(2)
+    with col3:
+        color_profile = st.selectbox("Colorization", ["Original", "Natural/Realistic", "Vibrant (Kodachrome)", "Muted Documentary", "B&W", "Sepia"])
+    with col4:
+        vignette = st.select_slider("Vignette Strength", options=["None", "Subtle", "Heavy"])
+
+# --- 6. Additional Instructions ---
+st.markdown("### Step 6: Final Touches")
+extra_instructions = st.text_area("Additional Instructions", placeholder="e.g., Make sure to keep the small birthmark on the cheek...")
+
+# --- PROMPT GENERATION LOGIC ---
+st.divider()
+if st.button("Generate Restoration Prompt", type="primary"):
+    
+    # 1. Run the dimensional translation math on the backend
+    # We use locals() checks to gracefully handle UI states where variables might not be initialized
+    calculated_dimensions = calculate_pixel_dimensions(
+        selected_dim, 
+        custom_val if 'custom_val' in locals() else "", 
+        unit if 'unit' in locals() else "px", 
+        dpi, 
+        use_case, 
+        multiplier if 'multiplier' in locals() else "1.0x"
+    )
+
+    # 2. Call the tailored Gemini function
+    master_prompt = build_gemini_prompt(
+        calculated_dimensions, orientation, smart_crop, aspect_mode, damage_types, 
+        reconstruct_missing, fidelity_mode, skin_texture, 
+        color_profile, vignette, extra_instructions
+    )
+    
+    st.subheader("Your Generated Gemini Prompt:")
+    st.code(master_prompt, language="plaintext")
+    
+    # Reliable Copy Button
+    copy_html = f"""
+        <button onclick="copyToClipboard()" style="
+            background-color: #ff4b4b; color: white; border: none; 
+            padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;
+        ">📋 Copy Prompt</button>
+        <script>
+        function copyToClipboard() {{
+            const text = `{master_prompt.replace('`', '\\`').replace('$', '\\$')}`;
+            navigator.clipboard.writeText(text).then(() => {{
+                alert('Prompt copied to clipboard!');
+            }});
+        }}
+        </script>
+    """
+    components.html(copy_html, height=50)
