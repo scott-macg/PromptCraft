@@ -1,3 +1,4 @@
+import math
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -146,15 +147,42 @@ extra_instructions = st.text_area("Additional Instructions", placeholder="e.g., 
 st.divider()
 if st.button("Generate Restoration Prompt", type="primary"):
     
-    # Call the tailored Gemini function
+    # 1. Run the dimensional translation math on the backend
+    calculated_dimensions = calculate_pixel_dimensions(
+        selected_dim, 
+        custom_val if 'custom_val' in locals() else "", 
+        unit if 'unit' in locals() else "px", 
+        dpi, 
+        use_case, 
+        multiplier if 'multiplier' in locals() else "1.0x"
+    )
+
+    # 2. Call the tailored Gemini function
     master_prompt = build_gemini_prompt(
-        orientation, smart_crop, aspect_mode, damage_types, 
+        calculated_dimensions, orientation, smart_crop, aspect_mode, damage_types, 
         reconstruct_missing, fidelity_mode, skin_texture, 
         color_profile, vignette, extra_instructions
     )
     
     st.subheader("Your Generated Gemini Prompt:")
     st.code(master_prompt, language="plaintext")
+    
+    # Reliable Copy Button
+    copy_html = f"""
+        <button onclick="copyToClipboard()" style="
+            background-color: #ff4b4b; color: white; border: none; 
+            padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;
+        ">📋 Copy Prompt</button>
+        <script>
+        function copyToClipboard() {{
+            const text = `{master_prompt.replace('`', '\\`').replace('$', '\\$')}`;
+            navigator.clipboard.writeText(text).then(() => {{
+                alert('Prompt copied to clipboard!');
+            }});
+        }}
+        </script>
+    """
+    components.html(copy_html, height=50)
     
     # Reliable Copy Button
     copy_html = f"""
