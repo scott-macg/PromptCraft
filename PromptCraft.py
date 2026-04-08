@@ -92,7 +92,7 @@ def build_gemini_prompt(dimensions, orientation, smart_crop, aspect_mode, damage
     if reconstruct_missing:
         visual_tags.append("seamless structural reconstruction")
         
-    # Subject Fidelity & Dynamic Detail Logic
+# Subject Fidelity & Dynamic Detail Logic
     clean_fidelity = fidelity_mode.split(" (")[0]
     negatives = []
     
@@ -107,12 +107,18 @@ def build_gemini_prompt(dimensions, orientation, smart_crop, aspect_mode, damage
          negatives.extend(["altered identity", "unrecognizable features", "hallucinated faces"])
          
     else: # Generative
-         # Take the training wheels off for maximum visual quality
-         visual_tags.extend(["highly detailed", "photorealistic", "sharp focus", "plausible historical details"])
-         # We deliberately DO NOT ban hallucinations here, as they are required for generative sharpness.
+         # MAXIMUM DETAIL, BUT STRICT STRUCTURAL BOUNDARIES
+         visual_tags.extend(["highly detailed", "photorealistic", "sharp focus", "plausible historical textures"])
          
-    visual_tags.append(f"{skin_texture.lower()}")
-    
+         # The Fix: We allow texture generation, but strictly forbid adding or changing physical items.
+         negatives.extend([
+             "adding new objects", 
+             "altering original clothing styles", 
+             "changing architectural structure", 
+             "inventing background elements",
+             "changing subject identity"
+         ])
+         
     # Aesthetics & Style
     if color_profile != "Original":
          visual_tags.append(f"{color_profile.lower()} colorization")
