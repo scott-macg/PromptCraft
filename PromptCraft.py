@@ -63,12 +63,16 @@ def calculate_pixel_dimensions(selected_dim, custom_val, unit, dpi_string, use_c
     return ""
 
 def build_gemini_prompt(dimensions, orientation, smart_crop, aspect_mode, damage_types, reconstruct_missing, fidelity_mode, skin_texture, color_profile, vignette, extra_instructions):
-    """Compiles UI inputs into a Gemini-optimized diffusion prompt, adjusting detail based on fidelity."""
+    """Compiles UI inputs into a Gemini-optimized prompt with STRICT anti-hallucination guardrails."""
     
-    # Base Descriptive Tags
+    # Base Descriptive Tags - Bringing back the original goals
     visual_tags = [
-        "Photographic restoration",
+        "Faithful photographic restoration",
+        "highly detailed",
+        "photorealistic",
+        "sharp focus",
         "expanded high dynamic range",
+        "non-destructive enhancement", 
         f"{orientation.lower()} orientation"
     ]
     
@@ -79,62 +83,46 @@ def build_gemini_prompt(dimensions, orientation, smart_crop, aspect_mode, damage
         else:
             visual_tags.append(dimensions)
     
-    # Composition (Updated for clarity)
+    # Composition
     if smart_crop:
-         visual_tags.append("tightly framed on primary subject")
+         visual_tags.append("perfectly framed subjects")
     if aspect_mode == "Fill (Crop to fit)":
-         visual_tags.append("cropped to fill frame")
+         visual_tags.append("edge-to-edge subject framing")
          
-    # Structural Repair
+    # Structural Repair - Forcing original structure
     if damage_types:
-        visual_tags.append("clean surface")
-        visual_tags.append("archival condition")
+        visual_tags.append("flawless surface")
+        visual_tags.append("pristine archival condition")
     if reconstruct_missing:
         visual_tags.append("seamless structural reconstruction")
         
-# Subject Fidelity & Dynamic Detail Logic
-    clean_fidelity = fidelity_mode.split(" (")[0]
-    negatives = []
+    visual_tags.append("exact original structure")
+        
+    # Subject Fidelity
+    visual_tags.append("exact identity match strictly matching the source")
+    visual_tags.append(f"{skin_texture.lower()}")
     
-    if clean_fidelity == "Conservative":
-         # Prioritize original pixels over artificial sharpness
-         visual_tags.extend(["exact original structure", "gentle denoise", "preserve original clarity"])
-         negatives.extend(["new details", "invented elements", "hallucinations", "new facial features", "over-sharpening"])
-         
-    elif clean_fidelity == "Reference-Based":
-         # Balance between sharpness and matching the reference face
-         visual_tags.extend(["exact subject likeness matching reference", "sharp focus", "highly detailed"])
-         negatives.extend(["altered identity", "unrecognizable features", "hallucinated faces"])
-         
-    else: # Generative
-         # MAXIMUM DETAIL, BUT STRICT STRUCTURAL BOUNDARIES
-         visual_tags.extend(["highly detailed", "photorealistic", "sharp focus", "plausible historical textures"])
-         
-         # The Fix: We allow texture generation, but strictly forbid adding or changing physical items.
-         negatives.extend([
-             "adding new objects", 
-             "altering original clothing styles", 
-             "changing architectural structure", 
-             "inventing background elements",
-             "changing subject identity"
-         ])
-         
     # Aesthetics & Style
     if color_profile != "Original":
          visual_tags.append(f"{color_profile.lower()} colorization")
          
-    if vignette != "None":
-         visual_tags.append(f"{vignette.lower()} vignette")
-         
     # Compile the positive description
     gemini_prompt = ", ".join(visual_tags)
     
-    # Finalize Negatives
+    # --- THE IRONCLAD NEGATIVE GUARDRAILS ---
+    # We are restoring the exact phrases from your original working prompt
+    negatives = [
+        "Zero AI hallucinations", 
+        "alteration to original structure",
+        "new facial features",
+        "invented elements",
+        "artifacts", 
+        "destructive enhancements"
+    ]
+    
     if vignette == "None":
          negatives.append("vignette")
          
-    negatives.extend(["digital artifacts", "destructive enhancements"])
-    
     gemini_prompt += f". Strictly avoid: {', '.join(negatives)}."
     
     # User Notes
