@@ -12,6 +12,9 @@ with st.expander("Step 1: Output Strategy", expanded=True):
     with col1:
         use_case = st.selectbox("Intended Use", ["Digital Display", "Home Printing", "Professional Printing Service"])
         
+        # New: Explicit Orientation
+        orientation = st.radio("Target Orientation", ["Landscape", "Portrait"])
+        
         if use_case == "Digital Display":
             default_dpi, default_unit_idx = 0, 0
         else:
@@ -19,15 +22,20 @@ with st.expander("Step 1: Output Strategy", expanded=True):
             
         dpi = st.radio("DPI Setting", ["72 (Web)", "300 (Standard Print)", "600 (High-End Print)"], index=default_dpi)
         
-        # NEW: Orientation Checkbox
-        maintain_orientation = st.checkbox("Maintain original orientation", value=True)
-        
     with col2:
+        # Context-aware dimensions that swap based on orientation
         if use_case == "Digital Display":
-            dim_options = ["1920x1080 (HD)", "1080x1080 (Square)", "1080x1920 (Story)", "Scale Original (Multiplier)", "Custom"]
-        else:
-            dim_options = ["4x6", "5x7", "8x10", "8.5x11", "11x14", "16x20", "Scale Original (Multiplier)", "Custom"]
+            if orientation == "Landscape":
+                dim_options = ["1920x1080 (HD)", "2560x1440 (QHD)", "3840x2160 (4K)", "Custom"]
+            else:
+                dim_options = ["1080x1920 (Vertical HD)", "1440x2560 (Vertical QHD)", "2160x3840 (Vertical 4K)", "1080x1080 (Square)", "Custom"]
+        else: # Printing
+            if orientation == "Landscape":
+                 dim_options = ["6x4", "7x5", "10x8", "11x8.5", "14x11", "20x16", "Custom"]
+            else:
+                 dim_options = ["4x6", "5x7", "8x10", "8.5x11", "11x14", "16x20", "Custom"]
             
+        dim_options.insert(-1, "Scale Original (Multiplier)")
         selected_dim = st.selectbox("Target Dimensions", dim_options)
         
         if selected_dim == "Custom":
@@ -43,23 +51,26 @@ with st.expander("Step 1: Output Strategy", expanded=True):
         else:
             dimensions = f"{selected_dim} inches" if use_case != "Digital Display" and "inches" not in selected_dim else selected_dim
 
-# --- 2. Structural Restoration ---
-with st.expander("Step 2: Structural Restoration"):
+# --- 2. Composition & Aspect Ratio (New Section) ---
+with st.expander("Step 2: Composition & Aspect Ratio"):
+    aspect_mode = st.selectbox("How should the image fit the new dimensions?", 
+                               ["Fill (Crop to fit)", "Fit (Letterbox/Pillarbox)", "Stretch (Distort to fit)", "Center", "Span"])
+    
+    smart_crop = st.checkbox("Enable Smart Crop")
+    if smart_crop:
+        st.caption("✨ AI will intelligently adjust the composition to ensure subjects and key features are preserved within the new frame.")
+
+# --- 3. Structural Restoration ---
+with st.expander("Step 3: Structural Restoration"):
     damage_types = st.multiselect("Select damage to repair:", 
                                   ["Surface Scratches", "Deep Creases/Folds", "Water Stains/Foxing", "Torn Corners/Edges", "Dust & Specks"])
     reconstruct_missing = st.checkbox("Use bilateral symmetry to reconstruct missing sections?")
 
-# --- 3. Subject Fidelity ---
-with st.expander("Step 3: Subject Fidelity"):
+# --- 4. Subject Fidelity ---
+with st.expander("Step 4: Subject Fidelity"):
     fidelity_mode = st.radio("Facial Reconstruction Mode", 
                              ["Conservative (No new features)", "Reference-Based (Use secondary photo)", "Generative (AI-assisted restoration)"])
     skin_texture = st.select_slider("Skin Texture", options=["Ultra Smooth", "Balanced", "Natural Grain"], value="Natural Grain")
-
-# --- 4. Environmental Enhancement ---
-with st.expander("Step 4: Environmental Enhancement"):
-    env_options = st.multiselect("Enhancements:", 
-                                 ["Relighting", "Sky Replacement", "Background Clean-up", "Bokeh (Background Blur)"])
-    object_removal = st.text_input("Objects to remove (leave blank if none):", placeholder="e.g., power lines, red car")
 
 # --- 5. Aesthetic & Style ---
 with st.expander("Step 5: Aesthetic & Style"):
@@ -69,35 +80,32 @@ with st.expander("Step 5: Aesthetic & Style"):
     with col4:
         vignette = st.select_slider("Vignette Strength", options=["None", "Subtle", "Heavy"])
 
-# --- 6. NEW: Additional Instructions ---
+# --- 6. Additional Instructions ---
 st.markdown("### Step 6: Final Touches")
 extra_instructions = st.text_area("Additional Instructions", placeholder="e.g., Make sure to keep the small birthmark on the cheek...")
 
 # --- PROMPT GENERATION LOGIC ---
 st.divider()
 if st.button("Generate Restoration Prompt", type="primary"):
-    # Build dynamic prompt
     prompt_parts = ["### RESTORATION INSTRUCTIONS"]
     
-    # 1. Tech Specs
-    orient_text = " (Strictly maintain original orientation)" if maintain_orientation else ""
+    # 1. Tech Specs & Composition
     dim_text = dimensions if dimensions.strip() != "" else "[Auto-Detect]"
-    prompt_parts.append(f"**TECHNICAL SPECS:** Upscale to {dim_text} at {dpi} for {use_case}{orient_text}.")
+    prompt_parts.append(f"**TECHNICAL SPECS:** Upscale to {dim_text} at {dpi} for {use_case}. Forced Orientation: {orientation}.")
     
-    # 2. Structural/Fidelity/Env (same as before)
+    crop_note = " Enable Smart Crop: Intelligently adjust composition to ensure subjects and key features are preserved." if smart_crop else ""
+    prompt_parts.append(f"**COMPOSITION:** Handle aspect ratio differences using the '{aspect_mode}' method.{crop_note}")
+    
+    # 2. Structural/Fidelity/Env
     p_repair = f"Digitally heal {', '.join(damage_types).lower()}." if damage_types else "Ensure no alteration to original structure."
     p_symmetry = " Use bilateral symmetry to reconstruct missing sections." if reconstruct_missing else ""
     prompt_parts.append(f"**STRUCTURAL REPAIR:** {p_repair}{p_symmetry}")
     
     clean_fidelity = fidelity_mode.split(" (")[0]
-    prompt_parts.append(f"**SUBJECT FIDELITY:** Apply {clean_fidelity} restoration. Maintain {skin_texture} texture.")
-    
-    p_env = ( (f"Apply: {', '.join(env_options)}. " if env_options else "") + (f"Remove: {object_removal}." if object_removal else "") ).strip()
-    if p_env: prompt_parts.append(f"**ENVIRONMENT:** {p_env}")
+    prompt_parts.append(f"**SUBJECT FIDELITY:** Apply {clean_fidelity} restoration. Maintain {skin_texture} texture. Ensure identity strictly matches the source.")
     
     prompt_parts.append(f"**AESTHETICS:** Colorization: {color_profile}. Vignette: {vignette}.")
     
-    # NEW: Add extra instructions
     if extra_instructions.strip():
         prompt_parts.append(f"**ADDITIONAL USER NOTES:** {extra_instructions.strip()}")
     
@@ -108,15 +116,20 @@ if st.button("Generate Restoration Prompt", type="primary"):
     st.subheader("Your Generated Prompt:")
     st.code(master_prompt, language="markdown")
     
-    # NEW: The Copy Button (with JS helper)
-    if st.button("📋 Click to Copy to Clipboard"):
-        # This JS snippet selects the text inside the code block and copies it
-        components.html(f"""
-            <script>
-            const text = `{master_prompt}`;
+    # NEW & IMPROVED: Reliable Copy Button
+    # This renders a small button inside an iframe that has direct access to the clipboard
+    copy_html = f"""
+        <button onclick="copyToClipboard()" style="
+            background-color: #ff4b4b; color: white; border: none; 
+            padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;
+        ">📋 Copy Prompt</button>
+        <script>
+        function copyToClipboard() {{
+            const text = `{master_prompt.replace('`', '\\`').replace('$', '\\$')}`;
             navigator.clipboard.writeText(text).then(() => {{
-                window.parent.postMessage({{type: 'copy_success'}}, '*');
+                alert('Prompt copied to clipboard!');
             }});
-            </script>
-        """, height=0)
-        st.success("Prompt copied to clipboard!")
+        }}
+        </script>
+    """
+    components.html(copy_html, height=50)
