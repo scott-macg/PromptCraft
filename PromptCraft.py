@@ -62,10 +62,10 @@ def calculate_pixel_dimensions(selected_dim, custom_val, unit, dpi_string, use_c
     
     return ""
 
-def build_gemini_prompt(dimensions, orientation, smart_crop, aspect_mode, damage_types, reconstruct_missing, fidelity_mode, skin_texture, color_profile, vignette, extra_instructions):
-    """Compiles UI inputs into a Gemini-optimized prompt with STRICT anti-hallucination guardrails."""
+def build_gemini_prompt(dimensions, orientation, smart_crop, aspect_mode, damage_types, reconstruct_missing, fidelity_mode, skin_texture, color_profile, vignette, extra_instructions, target_thinking_model=True):
+    """Compiles UI inputs into a prompt, with an optional wrapper for Reasoning/Thinking models."""
     
-    # Base Descriptive Tags - Bringing back the original goals
+    # Base Descriptive Tags
     visual_tags = [
         "Faithful photographic restoration",
         "highly detailed",
@@ -89,7 +89,7 @@ def build_gemini_prompt(dimensions, orientation, smart_crop, aspect_mode, damage
     if aspect_mode == "Fill (Crop to fit)":
          visual_tags.append("edge-to-edge subject framing")
          
-    # Structural Repair - Forcing original structure
+    # Structural Repair
     if damage_types:
         visual_tags.append("flawless surface")
         visual_tags.append("pristine archival condition")
@@ -107,10 +107,9 @@ def build_gemini_prompt(dimensions, orientation, smart_crop, aspect_mode, damage
          visual_tags.append(f"{color_profile.lower()} colorization")
          
     # Compile the positive description
-    gemini_prompt = ", ".join(visual_tags)
+    core_tags = ", ".join(visual_tags)
     
-    # --- THE IRONCLAD NEGATIVE GUARDRAILS ---
-    # We are restoring the exact phrases from your original working prompt
+    # The Negative Guardrails
     negatives = [
         "Zero AI hallucinations", 
         "alteration to original structure",
@@ -119,18 +118,24 @@ def build_gemini_prompt(dimensions, orientation, smart_crop, aspect_mode, damage
         "artifacts", 
         "destructive enhancements"
     ]
-    
     if vignette == "None":
          negatives.append("vignette")
          
-    gemini_prompt += f". Strictly avoid: {', '.join(negatives)}."
+    guardrails = f". Strictly avoid: {', '.join(negatives)}."
+    
+    # Final Assembly
+    if target_thinking_model:
+        # Wrap the diffusion tags in a clear directive for the reasoning engine
+        final_prompt = f"Please execute an image generation task using the following visual parameters:\n\n{core_tags}{guardrails}"
+    else:
+        # Pass the raw tags for direct diffusion injection
+        final_prompt = f"{core_tags}{guardrails}"
     
     # User Notes
     if extra_instructions.strip():
-        gemini_prompt += f" SPECIFIC FOCUS: {extra_instructions.strip()}"
+        final_prompt += f"\n\nSPECIFIC FOCUS: {extra_instructions.strip()}"
         
-    return gemini_prompt
-    
+    return final_prompt    
 # --- 1. Output Strategy ---
 with st.expander("Step 1: Output Strategy", expanded=True):
     col1, col2 = st.columns(2)
